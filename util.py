@@ -123,3 +123,63 @@ contraction_mapping = {
 "you're": "you are",
 "you've": "you have"
 }
+
+
+
+def preprocess(df):
+    def remove_punctuation(text):
+        #return str(text).translate(str.maketrans('', '', string.punctuation))
+        text_nopunct = "".join([char if char not in string.punctuation else ' ' for char in str(text)])
+        return text_nopunct
+
+    def tokenize_text(text):
+        tokens = nltk.word_tokenize(text) 
+        tokens = [token.strip() for token in tokens]
+        return tokens
+
+    def remove_stopwords(tokens):
+        stopword_list = nltk.corpus.stopwords.words('english')
+        filtered_tokens = [token for token in tokens if token not in stopword_list]
+        #filtered_text = ' '.join(filtered_tokens)    
+        return filtered_tokens
+
+    def expand_contractions(text, contraction_mapping):
+
+        contractions_pattern = re.compile('({})'.format('|'.join(contraction_mapping.keys())), 
+                                          flags=re.IGNORECASE|re.DOTALL)
+        def expand_match(contraction):
+            match = contraction.group(0)
+            first_char = match[0]
+            expanded_contraction = contraction_mapping.get(match)\
+                                    if contraction_mapping.get(match)\
+                                    else contraction_mapping.get(match.lower())                       
+            expanded_contraction = first_char+expanded_contraction[1:]
+            return expanded_contraction
+
+        expanded_text = contractions_pattern.sub(expand_match, text)
+        expanded_text = re.sub("'", "", expanded_text)
+        return expanded_text
+    
+    def remove_digit(text):
+        text_nodigit = re.sub(r'\w*\d\w*', '',text).strip()
+        return text_nodigit
+
+    def stemming(tokenized_text):
+        ps = nltk.PorterStemmer()
+        stemmed = [ps.stem(word) for word in tokenized_text]
+        return stemmed
+
+    def lemmatize(tokenized_text):
+        wn = nltk.WordNetLemmatizer()
+        lemmatized = [wn.lemmatize(word) for word in tokenized_text]
+        return lemmatized
+    
+    
+    df["expand_contractions"] = df["comment_text"].apply(lambda x: expand_contractions(x.lower(), util.contraction_mapping))
+    df["remove_punctuation"] = df["expand_contractions"].apply(lambda x: remove_punctuation(x))
+    df["remove_digit"] = df["remove_punctuation"].apply(lambda x: remove_digit(x))
+    df["tokenized"] = df["remove_digit"].apply(lambda x: tokenize_text(x))
+    df['remove_stopwords'] =  df["tokenized"].apply(lambda x: remove_stopwords(x))
+    df['stemmed'] =  df["remove_stopwords"].apply(lambda x: stemming(x))
+    df['lemmatized'] =  df["stemmed"].apply(lambda x: lemmatize(x))
+    return df
